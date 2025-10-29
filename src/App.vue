@@ -12,12 +12,28 @@ v-app
     //- .pa3.flex.flex-column(style="font-family:sans-serif; height:100vh; ")
     div(style="flex-grow:1")
       h1.text-h4.text-lg-h2.text-center 🚂 Trainle
-        span(v-if="isUnlimited()")  unlimited
+        span(v-if="isTrainer()")  Trainer
+        span(v-else-if="isUnlimited()")  unlimited
         span(v-else)  \#{{ gameNumber }}
         span 🚂
-      v-sheet.my-5
+      v-sheet.my-5.text-body-1
         .text-body-1 Try to guess today's mystery station on Melbourne's metro train network.
         .text-body-1.mt-4 Each guess reveals how many stations to the target, and the distance as the crow flies.
+
+        span(v-if="isTrainer()")
+          .text-body-1.mt-4 
+          v-combobox(
+            label="Select line(s) to practice" 
+            v-model="selectedLines" 
+            placeholder="Alamein" 
+            :items=["Lilydale", "Belgrave", "Frankston"] 
+            multiple 
+            chips 
+            @update:modelValue="onSelectedLineUpdate"
+          )
+            template(v-slot:append)
+              v-btn(@click="selectAllLines") All
+              v-btn(@click="selectNoLines") None
 
         .text-body-1.mt-4(v-if="isUnlimited()") Refresh the page to get a new target station.
 
@@ -68,7 +84,7 @@ v-app
               div.pr-2(style="flex-grow: 1" v-html="shareText.replace(/\\n/g,'<br>')")
               v-btn.my-4.bg-white(@click="copyWin" style="flex-grow:0") Copy
       .map-container(v-if="fail || win" style="width:100%; height:calc(max(50vh, 200px)); position:relative")
-        Map( :guesses="guesses.map(g=>g.station)" :target="target")
+        Map( :guesses="guesses.map(g=>g.station)" :target="target" :lines="selectedLines" )
 
       #game-over
       v-btn#restart(v-if="isUnlimited() && (fail || win)" type="submit" @click="restart") Play again
@@ -105,6 +121,7 @@ export default {
     actions: [],
     hintsAllowed: 3,
     hintBoxShowing: false,
+    selectedLines: [],
   }),
   created() {
     window.app = this;
@@ -223,8 +240,11 @@ export default {
       }
       return this.daysSinceStart;
     },
+    isTrainer() {
+      return !!window.location.search.match(/trainer/);
+    },
     isUnlimited() {
-      return !!window.location.search.match(/unlimited/);
+      return !!window.location.search.match(/unlimited/) || this.isTrainer();
     },
     testRandom() {
       const stations = {};
@@ -260,6 +280,7 @@ export default {
       this.target = targetForGameNumber(this.gameNumber);
       this.sessionid = String(Math.random() + (new Date() % 86400000));
       if (window.location.hostname !== "localhostz") this.loadCookie();
+      if (this.isTrainer() && window.location.hostname !== "localhostz") this.loadTrainerCookie();
     },
     giveup() {
       this.fail = true;
@@ -324,8 +345,28 @@ export default {
             fail: this.fail,
             gameNumber: this.gameNumber,
             sessionid: this.sessionid,
+            trainingLines: this.selectedLines
           }),
         );
+      } catch (e) {
+        console.log(e);
+      }
+    },
+    onSelectedLineUpdate() {
+      this.updateTrainerCookie();
+      this.restart();
+    },
+    selectAllLines() {
+      this.selectedLines = ["Franskton"];
+    },
+    selectNoLines() {
+      this.selectedLines = [];
+    },
+    updateTrainerCookie() {
+      try {
+        localStorage.setItem("trainle-trainer", JSON.stringify({
+            selectedLines: this.selectedLines
+        }));
       } catch (e) {
         console.log(e);
       }
@@ -345,6 +386,18 @@ export default {
           this.sessionid = data.sessionid;
         } else {
           window.track({ id: "pageview", parameters: {} });
+        }
+      } catch (e) {
+        console.log(e);
+        window.track({ id: "pageview", parameters: {} });
+      }
+    },
+    loadTrainerCookie() {
+      try {
+        const trainer_cookie = localStorage.getItem("trainle-trainer");
+        if (trainer_cookie && this.isTrainer()) {
+          const data = JSON.parse(trainer_cookie);
+          this.selectedLines = data.selectedLines;
         }
       } catch (e) {
         console.log(e);
