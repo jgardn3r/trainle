@@ -14,7 +14,7 @@ window.turf = turf;
 window.uuu = U;
 // import { EventBus } from "../EventBus";
 export default {
-  props: ["guesses", "target"],
+  props: ["guesses", "target", "lines"],
   async mounted() {
     // replace this Mapbox access token with your own
     mapboxgl.accessToken =
@@ -40,7 +40,14 @@ export default {
       map.U.hide(/place-city/);
       map.U.addGeoJSON("trains", tracks);
       let lineFilter = true;
-
+      if (this.lines !== undefined) {
+        lineFilter = [
+          "in",
+          ["get", "line"],
+          ["literal", this.lines]
+        ];
+      }
+      
       map.U.addLine("trains-line", "trains", {
         lineColor: "hsl(180,50%,70%)",
         lineWidth: 5,
